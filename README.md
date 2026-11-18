@@ -1,2 +1,1447 @@
-index.html
-讓牛仔奔跑！排除一切障礙
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>super cowboy 3Dhigh</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <style>
+    /* 平板觸控按鈕專用樣式：電腦上自動隱藏，平板或觸控螢幕上自動顯示 */
+    #touch-controls {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      z-index: 100;
+      display: flex;
+      gap: 14px;
+      opacity: 0.92;
+      align-items: flex-end;
+    }
+    @media (pointer: fine) and (min-width: 769px) {
+      #touch-controls { display: none !important; }
+    }
+    .touch-group { display: flex; flex-direction: column; gap: 8px; }
+    .touch-btn {
+      width: 60px; height: 60px; border-radius: 50%;
+      background: rgba(74, 85, 104, 0.85); color: white;
+      display: flex; justify-content: center; align-items: center;
+      font-size: 14px; font-weight: bold;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+      touch-action: none;
+      cursor: pointer;
+    }
+    .touch-btn:active {
+      transform: scale(0.92);
+      background: rgba(45, 55, 72, 0.95);
+    }
+    .touch-btn.fire-btn {
+      width: 72px; height: 72px;
+      background: rgba(220, 38, 38, 0.9);
+      font-size: 15px;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #87CEEB;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+    #canvas-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+    .ui-panel {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      z-index: 10;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.88);
+      padding: 10px 16px;
+      border-radius: 30px;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+      backdrop-filter: blur(10px);
+    }
+    #gun-hud {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 15;
+      background: rgba(255, 255, 255, 0.92);
+      padding: 10px 26px;
+      border-radius: 30px;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.18);
+      backdrop-filter: blur(10px);
+      font-size: 19px;
+      font-weight: 900;
+      color: #dc2626;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+      pointer-events: none;
+      transition: transform 0.15s ease, color 0.2s ease;
+    }
+    #gun-hud.reloading {
+      color: #475569;
+      background: rgba(255, 255, 255, 0.8);
+    }
+    .score-board {
+      position: absolute;
+      top: 20px;
+      right: 25px;
+      z-index: 10;
+      text-align: right;
+      background: rgba(255, 255, 255, 0.88);
+      padding: 10px 20px;
+      border-radius: 20px;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+      backdrop-filter: blur(10px);
+      font-weight: 800;
+      color: #1e293b;
+      font-size: 18px;
+    }
+    .btn {
+      background: #4a5568;
+      color: #fff;
+      border: none;
+      padding: 7px 14px;
+      border-radius: 18px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    .btn:hover {
+      background: #2d3748;
+      transform: translateY(-2px);
+    }
+    .btn-primary {
+      background: #d97706;
+    }
+    .btn-primary:hover {
+      background: #b45309;
+    }
+    .file-input { display: none; }
+
+    /* 頭像裁切視窗 */
+    #crop-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(6px);
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    .crop-card {
+      background: #fff;
+      border-radius: 24px;
+      padding: 24px;
+      max-width: 380px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 20px 45px rgba(0,0,0,0.35);
+    }
+    .crop-card h3 {
+      font-size: 20px;
+      color: #1e293b;
+      margin-bottom: 6px;
+    }
+    .crop-card p {
+      font-size: 13px;
+      color: #64748b;
+      margin-bottom: 14px;
+    }
+    #crop-canvas {
+      width: 240px;
+      height: 240px;
+      border-radius: 50%;
+      border: 4px solid #d97706;
+      background: #f1f5f9;
+      cursor: grab;
+      touch-action: none;
+      margin: 0 auto 14px;
+      display: block;
+      box-shadow: inset 0 2px 10px rgba(0,0,0,0.15);
+    }
+    #crop-canvas:active {
+      cursor: grabbing;
+    }
+    .zoom-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 18px;
+      padding: 0 12px;
+      font-size: 13px;
+      color: #475569;
+      font-weight: 600;
+    }
+    .zoom-row input[type="range"] {
+      flex: 1;
+      accent-color: #d97706;
+    }
+    .crop-actions {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    #overlay-msg {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 20;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.94);
+      padding: 30px 42px;
+      border-radius: 25px;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.25);
+      backdrop-filter: blur(10px);
+      cursor: pointer;
+      max-width: 90%;
+      
+    }
+    #overlay-msg h1 { font-size: 32px; color: #1e293b; margin-bottom: 10px; }
+    #overlay-msg p { font-size: 15px; color: #475569; line-height: 1.6; }
+    .monster-badges {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 12px;
+    }
+    .badge {
+      background: #fef3c7;
+      color: #92400e;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 12px;
+    }
+
+    #touch-controls {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      z-index: 10;
+      display: flex;
+      gap: 14px;
+      opacity: 0.88;
+      align-items: flex-end;
+    }
+    @media (max-width: 900px) {
+      #gun-hud {
+        top: 76px;
+        font-size: 16px;
+        padding: 8px 18px;
+      }
+    }
+    @media (min-width: 769px) {
+      #touch-controls { display: none; }
+    }
+    .touch-group { display: flex; flex-direction: column; gap: 8px; }
+    .touch-btn {
+      width: 60px; height: 60px; border-radius: 50%;
+      background: rgba(74, 85, 104, 0.8); color: white;
+      display: flex; justify-content: center; align-items: center;
+      font-size: 15px; font-weight: bold;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+      touch-action: none;
+    }
+    .touch-btn.fire-btn {
+      width: 70px; height: 70px;
+      background: rgba(220, 38, 38, 0.88);
+    }
+  </style>
+</head>
+<body>
+
+  <div id="canvas-container"></div>
+
+  <div class="ui-panel">
+    <button class="btn" id="bgm-btn">音樂：開</button>
+    <button class="btn" id="mode-btn">模式：單人</button>
+    <button class="btn btn-primary" id="upload1-btn">P1上傳照片</button>
+    <button class="btn btn-primary" id="upload2-btn" style="display:none;">P2上傳照片</button>
+    <button class="btn" id="reset-btn" style="display:none;">恢復預設</button>
+    <input type="file" id="file1-input" class="file-input" accept="image/*">
+    <input type="file" id="file2-input" class="file-input" accept="image/*">
+  </div>
+
+  <div id="gun-hud">子彈就緒 (按 F 射擊)</div>
+
+  <div class="score-board">
+    <div>HI <span id="high-score">00000</span> | <span id="current-score">00000</span></div>
+  </div>
+
+  <!-- 人臉頭像微調裁切彈窗 -->
+  <div id="crop-modal">
+    <div class="crop-card">
+      <h3>調整頭像位置與大小</h3>
+      <p>拖曳照片對準五官，滑動拉桿縮放</p>
+      <canvas id="crop-canvas" width="512" height="512"></canvas>
+      <div class="zoom-row">
+        <span>縮小</span>
+        <input type="range" id="crop-zoom" min="0.5" max="3" step="0.02" value="1">
+        <span>放大</span>
+      </div>
+      <div class="crop-actions">
+        <button class="btn" id="crop-cancel">取消</button>
+        <button class="btn btn-primary" id="crop-confirm">套用到牛仔</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="overlay-msg">
+    <h1 id="msg-title">牛仔衝衝衝 3D</h1>
+    <p id="msg-sub">
+      <b>點擊畫面</b> 或按 <b>空白鍵 / W</b> 開始與跳躍<br>
+      <b>S / 下鍵</b> 蹲下閃避空中敵人 ｜ <b>F / Z</b> 開槍擊毀障礙<br>
+      <span style="font-size:13px; color:#64748b;">(雙人模式：P1用 W/S，P2用 方向鍵上/下)</span>
+    </p>
+    <div class="monster-badges">
+      <span class="badge">西部強盜</span>
+      <span class="badge">炸藥桶 (炸飛周圍)</span>
+      <span class="badge">沙漠巨蠍</span>
+      <span class="badge">俯衝禿鷹</span>
+      <span class="badge">噴射戰鬥機</span>
+    </div>
+  </div>
+
+  <div id="touch-controls">
+    <div class="touch-btn fire-btn" id="btn-fire">開槍</div>
+    <div class="touch-group">
+      <div class="touch-btn" id="btn-jump">P1跳</div>
+      <div class="touch-btn" id="btn-duck">P1蹲</div>
+    </div>
+    <div class="touch-group" id="p2-touch-group" style="display:none;">
+      <div class="touch-btn" id="btn-p2-jump" style="background:rgba(37,99,235,0.8)">P2跳</div>
+      <div class="touch-btn" id="btn-p2-duck" style="background:rgba(37,99,235,0.8)">P2蹲</div>
+    </div>
+  </div>
+
+<script>
+// ==========================================
+// 1. 西部音效與音樂合成器
+// ==========================================
+class WesternAudio {
+  constructor() {
+    this.ctx = null;
+    this.isMuted = false;
+    this.isPlaying = false;
+    this.step = 0;
+    this.timer = null;
+    this.sequence = [
+      [523.25, 130.81], [659.25, 0], [783.99, 196.00], [659.25, 0],
+      [880.00, 174.61], [783.99, 0], [659.25, 130.81], [523.25, 0],
+      [587.33, 146.83], [783.99, 0], [880.00, 196.00], [783.99, 0],
+      [659.25, 130.81], [587.33, 0], [523.25, 196.00], [0, 0]
+    ];
+  }
+  init() {
+    if (!this.ctx) {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      this.ctx = new AudioContext();
+    }
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+  }
+  playTone(freq, type, duration, vol = 0.08) {
+    if (this.isMuted || !this.ctx || freq <= 0) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, now);
+    gain.gain.setValueAtTime(vol, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+    osc.connect(gain); gain.connect(this.ctx.destination);
+    osc.start(now); osc.stop(now + duration);
+  }
+  startBGM() {
+    this.init();
+    if (this.isPlaying) return;
+    this.isPlaying = true;
+    this.step = 0;
+    const tick = () => {
+      if (!this.isPlaying) return;
+      const [lead, bass] = this.sequence[this.step % this.sequence.length];
+      if (lead > 0) this.playTone(lead, 'triangle', 0.16, 0.07);
+      if (bass > 0) this.playTone(bass, 'square', 0.18, 0.035);
+      this.step++;
+      this.timer = setTimeout(tick, Math.max(115, 175 - (gameSpeed - 0.22) * 200));
+    };
+    tick();
+  }
+  stopBGM() {
+    this.isPlaying = false;
+    if (this.timer) { clearTimeout(this.timer); this.timer = null; }
+  }
+  playJump() {
+    this.init();
+    if (this.isMuted || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(260, now);
+    osc.frequency.exponentialRampToValueAtTime(620, now + 0.14);
+    gain.gain.setValueAtTime(0.12, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+    osc.connect(gain); gain.connect(this.ctx.destination);
+    osc.start(now); osc.stop(now + 0.14);
+  }
+  playGunshot() {
+    this.init();
+    if (this.isMuted || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const bufferSize = this.ctx.sampleRate * 0.25;
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(1200, now);
+    filter.frequency.exponentialRampToValueAtTime(100, now + 0.25);
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.4, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+    noise.connect(filter); filter.connect(gain); gain.connect(this.ctx.destination);
+    noise.start(now);
+  }
+  playExplosion() {
+    this.init();
+    if (this.isMuted || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const bufferSize = this.ctx.sampleRate * 0.45;
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(480, now);
+    filter.frequency.exponentialRampToValueAtTime(45, now + 0.45);
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.55, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+    noise.connect(filter); filter.connect(gain); gain.connect(this.ctx.destination);
+    noise.start(now);
+  }
+  playGameOver() {
+    this.stopBGM();
+    this.init();
+    if (this.isMuted || !this.ctx) return;
+    [392.00, 349.23, 329.63, 261.63].forEach((freq, idx) => {
+      setTimeout(() => this.playTone(freq, 'sawtooth', 0.22, 0.08), idx * 140);
+    });
+  }
+  toggleMute() { this.isMuted = !this.isMuted; return this.isMuted; }
+}
+const audio = new WesternAudio();
+
+// ==========================================
+// 2. Three.js 3D 場景與燈光初始化
+// ==========================================
+const container = document.getElementById('canvas-container');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xc6e2ff);
+scene.fog = new THREE.Fog(0xc6e2ff, 20, 65);
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(-2, 4.2, 13.5);
+camera.lookAt(2.5, 1.8, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputEncoding = THREE.sRGBEncoding;
+container.appendChild(renderer.domElement);
+
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.68);
+scene.add(ambientLight);
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.85);
+dirLight.position.set(10, 18, 12);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.width = 2048;
+dirLight.shadow.mapSize.height = 2048;
+dirLight.shadow.camera.near = 0.5;
+dirLight.shadow.camera.far = 50;
+const d = 15;
+dirLight.shadow.camera.left = -d;
+dirLight.shadow.camera.right = d;
+dirLight.shadow.camera.top = d;
+dirLight.shadow.camera.bottom = -d;
+scene.add(dirLight);
+
+const groundGeo = new THREE.PlaneGeometry(120, 30);
+const groundMat = new THREE.MeshStandardMaterial({ color: 0xe6c280, roughness: 0.9 });
+const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+groundMesh.rotation.x = -Math.PI / 2;
+groundMesh.receiveShadow = true;
+scene.add(groundMesh);
+
+const decorGroup = new THREE.Group();
+scene.add(decorGroup);
+const decors = [];
+for (let i = 0; i < 38; i++) {
+  const isHill = i < 8;
+  const isCactus = !isHill && i < 16;
+  let mesh;
+  if (isHill) {
+    mesh = new THREE.Mesh(
+      new THREE.ConeGeometry(2 + Math.random() * 2, 3 + Math.random() * 3, 4),
+      new THREE.MeshStandardMaterial({ color: 0xd97706, flatShading: true })
+    );
+    mesh.position.set(-20 + Math.random() * 80, 1.5, -6 - Math.random() * 12);
+  } else if (isCactus) {
+    mesh = new THREE.Group();
+    const cMat = new THREE.MeshStandardMaterial({ color: 0x15803d });
+    const trunk = new THREE.Mesh(new THREE.BoxGeometry(0.32, 1.4, 0.32), cMat);
+    trunk.position.y = 0.7;
+    const armL = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.55, 0.22), cMat);
+    armL.position.set(-0.26, 0.85, 0);
+    const armR = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.45, 0.22), cMat);
+    armR.position.set(0.26, 0.72, 0);
+    mesh.add(trunk, armL, armR);
+    mesh.position.set(-20 + Math.random() * 80, 0, -2.2 - Math.random() * 5);
+  } else {
+    mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.4, 0.2, 0.4),
+      new THREE.MeshStandardMaterial({ color: 0xb45309, flatShading: true })
+    );
+    mesh.position.set(-20 + Math.random() * 80, 0.1, (Math.random() - 0.5) * 10);
+  }
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  decorGroup.add(mesh);
+  decors.push({ mesh, speedFactor: isHill ? 1: 1.0 });
+}
+
+// ==========================================
+// 2.5 3D 射擊與爆炸特效系統
+// ==========================================
+let effects = [];
+
+function spawnExplosionParticles(targetX, targetY, targetType, count = 18, scaleMult = 1) {
+  const paletteMap = {
+    jet: [0x475569, 0xf97316, 0xfacc15, 0x94a3b8],
+    barrel: [0xdc2626, 0xf97316, 0xfacc15, 0x78350f, 0x1e293b],
+    scorpion: [0x581c87, 0x7e22ce, 0xfacc15, 0x1e1b4b],
+    vulture: [0x451a03, 0x78350f, 0xfef3c7, 0xdc2626],
+    bandit: [0x27272a, 0xb91c1c, 0xf6ad55, 0xfacc15]
+  };
+  const colors = paletteMap[targetType] || paletteMap.bandit;
+
+  for (let i = 0; i < count; i++) {
+    const size = (0.18 + Math.random() * 0.24) * scaleMult;
+    const pGeo = new THREE.BoxGeometry(size, size, size);
+    const pMat = new THREE.MeshStandardMaterial({
+      color: colors[Math.floor(Math.random() * colors.length)]
+    });
+    const pMesh = new THREE.Mesh(pGeo, pMat);
+    pMesh.position.set(
+      targetX + (Math.random() - 0.5) * 0.7 * scaleMult,
+      targetY + (Math.random() - 0.5) * 0.7 * scaleMult,
+      (Math.random() - 0.5) * 0.7 * scaleMult
+    );
+    pMesh.castShadow = true;
+    scene.add(pMesh);
+
+    effects.push({
+      mesh: pMesh,
+      life: 30,
+      maxLife: 30,
+      vx: (Math.random() - 0.3) * 0.4 * scaleMult,
+      vy: (0.14 + Math.random() * 0.3) * scaleMult,
+      vz: (Math.random() - 0.5) * 0.4 * scaleMult,
+      rx: (Math.random() - 0.5) * 0.3,
+      ry: (Math.random() - 0.5) * 0.3,
+      update() {
+        this.vy -= 0.018;
+        this.mesh.position.x += this.vx;
+        this.mesh.position.y += this.vy;
+        this.mesh.position.z += this.vz;
+        this.mesh.rotation.x += this.rx;
+        this.mesh.rotation.y += this.ry;
+        const s = Math.max(0.01, this.life / this.maxLife);
+        this.mesh.scale.set(s, s, s);
+      }
+    });
+  }
+}
+
+function spawnShootEffects(startX, startY, targetX, targetY, targetType) {
+  const flashGeo = new THREE.SphereGeometry(0.32, 8, 8);
+  const flashMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+  const flashMesh = new THREE.Mesh(flashGeo, flashMat);
+  flashMesh.position.set(startX, startY, 0.34);
+  scene.add(flashMesh);
+  effects.push({
+    mesh: flashMesh,
+    life: 8,
+    maxLife: 8,
+    update() {
+      const s = 1 + (1 - this.life / this.maxLife) * 1.4;
+      this.mesh.scale.set(s, s, s);
+    }
+  });
+
+  const dist = Math.max(1.5, targetX - startX);
+  const beamGeo = new THREE.BoxGeometry(dist, 0.14, 0.14);
+  const beamMat = new THREE.MeshBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.95 });
+  const beamMesh = new THREE.Mesh(beamGeo, beamMat);
+  beamMesh.position.set(startX + dist / 2, (startY + targetY) / 2, 0.2);
+  beamMesh.rotation.z = Math.atan2(targetY - startY, dist);
+  scene.add(beamMesh);
+  effects.push({
+    mesh: beamMesh,
+    life: 10,
+    maxLife: 10,
+    update() {
+      const ratio = this.life / this.maxLife;
+      this.mesh.scale.y = ratio;
+      this.mesh.scale.z = ratio;
+      this.mesh.material.opacity = ratio;
+    }
+  });
+
+  if (targetType !== null) {
+    spawnExplosionParticles(targetX, targetY, targetType, 18, 1);
+  }
+}
+
+// ==========================================
+// 3. 3D 立體牛仔角色建構器 (高解析頭像融合)
+// ==========================================
+function createBox(w, h, d, color, x, y, z) {
+  const geo = new THREE.BoxGeometry(w, h, d);
+  const mat = new THREE.MeshStandardMaterial({ color });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(x, y, z);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+class Cowboy3D {
+  constructor(isPlayerOne, startX, startZ) {
+    this.isPlayerOne = isPlayerOne;
+    this.group = new THREE.Group();
+    this.group.position.set(startX, 0, startZ);
+    scene.add(this.group);
+
+    this.vy = 0;
+    this.gravity = -0.022;
+    this.jumpForce = 0.44;
+    this.isGrounded = true;
+    this.isDucking = false;
+    this.runCycle = Math.random() * 5;
+    this.customTexture = null;
+    this.skinToneHex = 0xfbd38d;
+
+    this.buildModel();
+  }
+
+  buildModel() {
+    while (this.group.children.length > 0) this.group.remove(this.group.children[0]);
+
+    const hasFace = this.customTexture !== null;
+    const bandanaColor = this.isPlayerOne ? 0xdc2626 : 0x2563eb;
+    const vestColor = this.isPlayerOne ? 0x1e3a8a : 0x14532d;
+    const skinColor = hasFace ? this.skinToneHex : 0xfbd38d;
+
+    this.bodyGroup = new THREE.Group();
+    this.group.add(this.bodyGroup);
+
+    this.torso = createBox(0.65, 0.85, 0.45, 0xfef3c7, 0, 1.15, 0);
+    this.bodyGroup.add(this.torso);
+    this.bodyGroup.add(createBox(0.68, 0.82, 0.48, vestColor, -0.02, 1.15, 0));
+    this.bodyGroup.add(createBox(0.68, 0.14, 0.48, 0x5c2d16, 0, 0.78, 0));
+    this.bodyGroup.add(createBox(0.15, 0.16, 0.50, 0xfacc15, 0.28, 0.78, 0));
+    this.bodyGroup.add(createBox(0.68, 0.18, 0.50, bandanaColor, 0, 1.62, 0));
+    this.headGroup = new THREE.Group();
+    this.headGroup.position.set(0, 2.02, 0);
+    this.bodyGroup.add(this.headGroup);
+
+    if (hasFace) {
+      const headBox = createBox(0.64, 0.62, 0.62, skinColor, 0, 0, 0);
+      this.headGroup.add(headBox);
+
+      this.headGroup.add(createBox(0.14, 0.18, 0.08, skinColor, 0, -0.02, 0.33));
+      this.headGroup.add(createBox(0.14, 0.18, 0.08, skinColor, 0, -0.02, -0.33));
+
+      const facePlaneGeo = new THREE.CircleGeometry(0.31, 48);
+      const faceMat = new THREE.MeshStandardMaterial({
+        map: this.customTexture,
+        transparent: true,
+        roughness: 0.65,
+        metalness: 0.02
+      });
+
+      const frontFace = new THREE.Mesh(facePlaneGeo, faceMat);
+      frontFace.position.set(0.06, -0.02, 0.316);
+      this.headGroup.add(frontFace);
+
+      const sideFace = new THREE.Mesh(facePlaneGeo, faceMat);
+      sideFace.rotation.y = Math.PI / 2;
+      sideFace.position.set(0.326, -0.02, 0);
+      this.headGroup.add(sideFace);
+    } else {
+      this.headGroup.add(createBox(0.6, 0.58, 0.58, skinColor, 0, 0, 0));
+      this.headGroup.add(createBox(0.08, 0.1, 0.08, 0x111827, 0.28, 0.06, 0.14));
+      this.headGroup.add(createBox(0.08, 0.1, 0.08, 0x111827, 0.28, 0.06, -0.14));
+      this.headGroup.add(createBox(0.1, 0.08, 0.32, 0x4a2511, 0.28, -0.12, 0));
+    }
+
+    this.headGroup.add(createBox(1.16, 0.08, 1.16, 0x5c2d16, 0, 0.33, 0));
+    this.headGroup.add(createBox(0.68, 0.34, 0.68, 0x854d27, 0, 0.51, 0));
+    this.headGroup.add(createBox(0.70, 0.07, 0.70, 0xeab308, 0, 0.39, 0));
+
+    this.leftLeg = new THREE.Group();
+    this.leftLeg.position.set(0, 0.72, 0.16);
+    this.leftLeg.add(createBox(0.24, 0.52, 0.24, 0x1e293b, 0, -0.26, 0));
+    this.leftLeg.add(createBox(0.34, 0.20, 0.26, 0x78350f, 0.05, -0.62, 0));
+    this.group.add(this.leftLeg);
+
+    this.rightLeg = new THREE.Group();
+    this.rightLeg.position.set(0, 0.72, -0.16);
+    this.rightLeg.add(createBox(0.24, 0.52, 0.24, 0x1e293b, 0, -0.26, 0));
+    this.rightLeg.add(createBox(0.34, 0.20, 0.26, 0x78350f, 0.05, -0.62, 0));
+    this.group.add(this.rightLeg);
+
+    this.leftArm = new THREE.Group();
+    this.leftArm.position.set(0, 1.48, -0.34);
+    this.leftArm.add(createBox(0.22, 0.55, 0.22, skinColor, 0, -0.25, 0));
+    this.bodyGroup.add(this.leftArm);
+
+    this.rightArm = new THREE.Group();
+    this.rightArm.position.set(0, 1.48, 0.34);
+    this.rightArm.add(createBox(0.22, 0.55, 0.22, skinColor, 0, -0.25, 0));
+    if (this.isPlayerOne) {
+      this.rightArm.add(createBox(0.14, 0.22, 0.12, 0x334155, 0.05, -0.52, 0));
+      this.rightArm.add(createBox(0.45, 0.12, 0.12, 0x1e293b, 0.22, -0.45, 0));
+    }
+    this.bodyGroup.add(this.rightArm);
+  }
+
+  update(jumpKey, duckKey) {
+    if (jumpKey && this.isGrounded) {
+      this.vy = this.jumpForce;
+      this.isGrounded = false;
+      audio.playJump();
+    }
+    if (duckKey && !this.isGrounded) {
+      this.vy -= 0.03;
+    }
+
+    this.isDucking = duckKey && this.isGrounded;
+    this.vy += this.gravity;
+    this.group.position.y += this.vy;
+
+    if (this.group.position.y <= 0) {
+      this.group.position.y = 0;
+      this.vy = 0;
+      this.isGrounded = true;
+    }
+
+    if (this.isDucking) {
+      this.bodyGroup.scale.y = 0.62;
+      this.bodyGroup.rotation.z = -0.35;
+    } else {
+      this.bodyGroup.scale.y = 1.0;
+      this.bodyGroup.rotation.z = 0;
+    }
+
+    const shootArmAngle = (this.isPlayerOne && shootAnimTimer > 0)
+      ? 1.55 + Math.sin((18 - shootAnimTimer) * 0.4) * 0.25
+      : null;
+
+    if (this.isGrounded) {
+      this.runCycle += 0.28 * (gameSpeed / 0.22);
+      const swing = Math.sin(this.runCycle);
+      this.leftLeg.rotation.z = swing * 0.85;
+      this.rightLeg.rotation.z = -swing * 0.85;
+      this.leftArm.rotation.z = -swing * 0.75;
+      this.rightArm.rotation.z = shootArmAngle !== null ? shootArmAngle : swing * 0.75;
+      this.bodyGroup.position.y = Math.abs(swing) * 0.12;
+    } else {
+      this.leftLeg.rotation.z = 0.5;
+      this.rightLeg.rotation.z = -0.5;
+      this.rightArm.rotation.z = shootArmAngle !== null ? shootArmAngle : 0.8;
+    }
+  }
+
+  getHitbox() {
+    const height = this.isDucking ? 1.15 : 1.85;
+    return {
+      minX: this.group.position.x - 0.22,
+      maxX: this.group.position.x + 0.22,
+      minY: this.group.position.y,
+      maxY: this.group.position.y + height
+    };
+  }
+}
+
+// ==========================================
+// 4. 3D 豐富怪物庫 (5種獨特西部敵人)
+// ==========================================
+class Obstacle3D {
+  constructor(type, offsetX = 0, isPaired = false) {
+    this.type = type;
+    this.isPaired = isPaired; // 標記是否為兩個並排的組合（並排時保持同步不額外加速移動）
+    this.group = new THREE.Group();
+    this.x = 26 + offsetX;
+    this.animPhase = Math.random() * Math.PI * 2;
+
+    if (type === 'bandit') {
+      // 1. 西部蒙面強盜
+      this.y = 0;
+      this.height = 1.85;
+      this.group.add(createBox(0.65, 0.9, 0.45, 0x27272a, 0, 0.85, 0));
+      this.group.add(createBox(0.55, 0.55, 0.55, 0xf6ad55, 0, 1.55, 0));
+      this.group.add(createBox(0.58, 0.22, 0.58, 0xb91c1c, 0, 1.42, 0));
+      this.group.add(createBox(1.05, 0.08, 1.05, 0x18181b, 0, 1.85, 0));
+      this.group.add(createBox(0.60, 0.28, 0.60, 0x18181b, 0, 2.00, 0));
+      this.group.add(createBox(0.75, 0.14, 0.14, 0x52525b, -0.45, 0.95, 0.28));
+
+    } else if (type === 'barrel') {
+      // 2. 滾動 TNT 炸藥桶 (僅單獨出現，不與其他怪物疊在一起)
+      this.y = 0.55;
+      this.height = 1.15;
+      this.barrelMesh = new THREE.Group();
+      const body = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.52, 0.52, 0.95, 16),
+        new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.5 })
+      );
+      body.rotation.x = Math.PI / 2;
+      body.castShadow = true;
+      this.barrelMesh.add(body);
+
+      const bandMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.6 });
+      [-0.3, 0.3].forEach(zPos => {
+        const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.54, 0.54, 0.12, 16), bandMat);
+        ring.rotation.x = Math.PI / 2;
+        ring.position.z = zPos;
+        this.barrelMesh.add(ring);
+      });
+      const label = createBox(0.55, 0.55, 1.0, 0xfacc15, 0, 0, 0);
+      this.barrelMesh.add(label);
+      this.group.add(this.barrelMesh);
+
+    } else if (type === 'scorpion') {
+      // 3. 沙漠巨蠍
+      this.y = 0;
+      this.height = 1.1;
+      this.group.add(createBox(1.15, 0.36, 0.65, 0x581c87, 0, 0.32, 0));
+      this.leftClaw = createBox(0.55, 0.22, 0.24, 0x7e22ce, -0.75, 0.34, 0.35);
+      this.rightClaw = createBox(0.55, 0.22, 0.24, 0x7e22ce, -0.75, 0.34, -0.35);
+      this.group.add(this.leftClaw, this.rightClaw);
+      this.tailGroup = new THREE.Group();
+      this.tailGroup.position.set(0.45, 0.45, 0);
+      this.tailGroup.add(createBox(0.22, 0.45, 0.22, 0x6b21a8, 0.1, 0.2, 0));
+      this.tailGroup.add(createBox(0.35, 0.2, 0.2, 0x7e22ce, -0.05, 0.48, 0));
+      this.tailGroup.add(createBox(0.25, 0.12, 0.12, 0xfacc15, -0.32, 0.45, 0));
+      this.group.add(this.tailGroup);
+      for (let s = -1; s <= 1; s++) {
+        this.group.add(createBox(0.12, 0.28, 0.95, 0x3b0764, s * 0.32, 0.14, 0));
+      }
+
+    } else if (type === 'vulture') {
+      // 4. 俯衝禿鷹
+      this.baseY = 1.65;
+      this.y = this.baseY;
+      this.height = 0.85;
+      this.group.add(createBox(0.85, 0.38, 0.42, 0x451a03, 0, 0.2, 0));
+      this.group.add(createBox(0.35, 0.32, 0.32, 0xfda4af, -0.52, 0.28, 0));
+      this.group.add(createBox(0.28, 0.14, 0.14, 0xfacc15, -0.78, 0.24, 0));
+      this.leftWing = new THREE.Group();
+      this.leftWing.position.set(0, 0.32, 0.2);
+      this.leftWing.add(createBox(0.45, 0.08, 0.95, 0x78350f, 0, 0, 0.48));
+      this.rightWing = new THREE.Group();
+      this.rightWing.position.set(0, 0.32, -0.2);
+      this.rightWing.add(createBox(0.45, 0.08, 0.95, 0x78350f, 0, 0, -0.48));
+      this.group.add(this.leftWing, this.rightWing);
+
+    } else {
+      // 5. 高速噴射戰鬥機
+      const heights = [1.55, 2.08];
+      this.y = heights[Math.floor(Math.random() * heights.length)];
+      this.height = 0.85;
+      this.group.add(createBox(2.2, 0.45, 0.55, 0x475569, 0, 0.2, 0));
+      this.group.add(createBox(0.65, 0.1, 2.4, 0x64748b, -0.1, 0.2, 0));
+      this.group.add(createBox(0.45, 0.55, 0.1, 0x334155, 0.85, 0.5, 0));
+      this.group.add(createBox(0.5, 0.25, 0.25, 0xf97316, 1.25, 0.2, 0));
+    }
+
+    this.group.position.set(this.x, this.y, 0);
+    scene.add(this.group);
+  }
+
+  update() {
+    // 若為兩個疊在一起（並排）的組合，維持 1.0 倍基準速度、不額外上下移動，保持固定站位
+    let speedMult = 1.0;
+    if (!this.isPaired) {
+      if (this.type === 'jet') speedMult = 1.3;
+      else if (this.type === 'barrel') speedMult = 1.15;
+      else if (this.type === 'vulture') speedMult = 1.12;
+    }
+
+    this.x -= gameSpeed * speedMult;
+    this.group.position.x = this.x;
+    this.animPhase += 0.16;
+
+    if (this.type === 'bandit') {
+      // 雙人並排強盜像木樁一樣站穩不上下跳動，單人強盜才有跑步上下擺動
+      this.group.position.y = this.isPaired ? 0 : Math.abs(Math.sin(this.x * 2)) * 0.12;
+    } else if (this.type === 'barrel') {
+      this.barrelMesh.rotation.z += gameSpeed * 2.2;
+    } else if (this.type === 'scorpion') {
+      this.leftClaw.position.x = -0.75 + Math.sin(this.animPhase) * 0.12;
+      this.rightClaw.position.x = -0.75 - Math.sin(this.animPhase) * 0.12;
+      this.tailGroup.rotation.z = Math.sin(this.animPhase * 0.8) * 0.18;
+    } else if (this.type === 'vulture') {
+      this.y = this.baseY + Math.sin(this.animPhase * 0.55) * 0.35;
+      this.group.position.y = this.y;
+      const flap = Math.sin(this.animPhase * 1.4) * 0.55;
+      this.leftWing.rotation.x = flap;
+      this.rightWing.rotation.x = -flap;
+    }
+  }
+
+  getHitbox() {
+    if (this.type === 'jet') {
+      return { minX: this.x - 0.72, maxX: this.x + 0.72, minY: this.y + 0.12, maxY: this.y + this.height * 0.88 };
+    }
+    if (this.type === 'vulture') {
+      return { minX: this.x - 0.42, maxX: this.x + 0.42, minY: this.y + 0.08, maxY: this.y + 0.65 };
+    }
+    if (this.type === 'scorpion') {
+      return { minX: this.x - 0.62, maxX: this.x + 0.48, minY: 0, maxY: 0.85 };
+    }
+    if (this.type === 'barrel') {
+      return { minX: this.x - 0.44, maxX: this.x + 0.44, minY: 0, maxY: 0.98 };
+    }
+    return { minX: this.x - 0.24, maxX: this.x + 0.24, minY: 0, maxY: this.height * 0.88 };
+  }
+
+  destroy() { scene.remove(this.group); }
+}
+
+// ==========================================
+// 5. 遊戲核心狀態與控制邏輯
+// ==========================================
+let gameMode = 'single';
+let gameStarted = false;
+let gameOver = false;
+let score = 0;
+let highScore = 0;
+let gameSpeed = 0.22;
+let isNight = false;
+let spawnTimer = 0;
+let nextSpawnDelay = 75;
+let shootCooldown = 0;
+let shootAnimTimer = 0;
+
+let cowboy1 = new Cowboy3D(true, -3.5, 0);
+let cowboy2 = new Cowboy3D(false, -5.2, -0.8);
+cowboy2.group.visible = false;
+
+let obstacles = [];
+const keys = { p1Jump: false, p1Duck: false, p2Jump: false, p2Duck: false };
+
+const overlayMsg = document.getElementById('overlay-msg');
+const msgTitle = document.getElementById('msg-title');
+const msgSub = document.getElementById('msg-sub');
+const scoreEl = document.getElementById('current-score');
+const highScoreEl = document.getElementById('high-score');
+const gunHudEl = document.getElementById('gun-hud');
+
+function triggerShoot() {
+  if (!gameStarted || gameOver || shootCooldown > 0) return;
+  audio.playGunshot();
+  shootAnimTimer = 18;
+  shootCooldown = 360;
+
+  cowboy1.rightArm.rotation.z = 1.55;
+  const gunMuzzleX = cowboy1.group.position.x + 0.85;
+  const gunMuzzleY = cowboy1.group.position.y + (cowboy1.isDucking ? 1.05 : 1.55);
+
+  const ahead = obstacles.filter(o => o.x > cowboy1.group.position.x);
+  if (ahead.length > 0) {
+    ahead.sort((a, b) => a.x - b.x);
+    const target = ahead[0];
+    const targetCenterY = target.y + target.height * 0.4;
+    spawnShootEffects(gunMuzzleX, gunMuzzleY, target.x, targetCenterY, target.type);
+
+    if (target.type === 'barrel') {
+      audio.playExplosion();
+      spawnExplosionParticles(target.x, targetCenterY, 'barrel', 32, 1.6);
+      score += 25;
+      obstacles.forEach(other => {
+        if (other !== target && Math.abs(other.x - target.x) < 7.5) {
+          spawnExplosionParticles(other.x, other.y + 0.6, other.type, 14, 1.1);
+          other.destroy();
+          other._dead = true;
+          score += 10;
+        }
+      });
+    }
+
+    target.destroy();
+    target._dead = true;
+    obstacles = obstacles.filter(o => !o._dead);
+  } else {
+    spawnShootEffects(gunMuzzleX, gunMuzzleY, gunMuzzleX + 18, gunMuzzleY, null);
+  }
+}
+
+function restartGame() {
+  obstacles.forEach(o => o.destroy());
+  obstacles = [];
+  effects.forEach(ef => scene.remove(ef.mesh));
+  effects = [];
+
+  score = 0;
+  gameSpeed = 1.5;
+  shootCooldown = 0;
+  shootAnimTimer = 0;
+  gameOver = false;
+  gameStarted = true;
+  isNight = false;
+  updateDayNight();
+
+  cowboy1.group.position.set(-3.5, 0, 0);
+  cowboy1.vy = 0;
+  cowboy2.group.position.set(-5.2, 0, -0.8);
+  cowboy2.vy = 0;
+  cowboy2.group.visible = (gameMode === 'double');
+
+  overlayMsg.style.display = 'none';
+  audio.startBGM();
+}
+
+function updateDayNight() {
+  if (isNight) {
+    scene.background.setHex(0x0f172a);
+    scene.fog.color.setHex(0x0f172a);
+    ambientLight.intensity = 0.35;
+    dirLight.intensity = 0.45;
+  } else {
+    scene.background.setHex(0x87CEEB);
+    scene.fog.color.setHex(0x87CEEB);
+    ambientLight.intensity = 0.68;
+    dirLight.intensity = 0.85;
+  }
+}
+
+function checkCollision(boxA, boxB) {
+  return (
+    boxA.minX < boxB.maxX &&
+    boxA.maxX > boxB.minX &&
+    boxA.minY < boxB.maxY &&
+    boxA.maxY > boxB.minY
+  );
+}
+
+function spawnWave() {
+  const rand = Math.random();
+  if (score < 35) {
+    // 前期暖身：單隻強盜或單顆炸藥桶
+    obstacles.push(new Obstacle3D(rand < 0.65 ? 'bandit' : 'barrel', 0, false));
+  } else if (score < 90) {
+    // 中期：炸藥桶永遠單獨出現；兩個疊在一起的強盜設定為不會自己移動 (isPaired = true)
+    if (rand < 0.28) {
+      obstacles.push(new Obstacle3D('scorpion', 0, false));
+    } else if (rand < 0.55) {
+      obstacles.push(new Obstacle3D('barrel', 0, false));
+    } else if (rand < 0.80) {
+      obstacles.push(new Obstacle3D('bandit', 0, true));
+      obstacles.push(new Obstacle3D('bandit', 1.45, true));
+    } else {
+      obstacles.push(new Obstacle3D('vulture', 0, false));
+    }
+  } else {
+    // 後期：炸藥桶不與任何怪物疊在一起，兩個疊在一起的改為雙固定強盜組合
+    if (rand < 0.22) {
+      obstacles.push(new Obstacle3D('jet', 0, false));
+    } else if (rand < 0.44) {
+      obstacles.push(new Obstacle3D('vulture', 0, false));
+    } else if (rand < 0.64) {
+      obstacles.push(new Obstacle3D('scorpion', 0, false));
+    } else if (rand < 0.82) {
+      obstacles.push(new Obstacle3D('barrel', 0, false));
+    } else {
+      obstacles.push(new Obstacle3D('bandit', 0, true));
+      obstacles.push(new Obstacle3D('bandit', 1.45, true));
+    }
+  }
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  if (gameStarted && !gameOver) {
+    decors.forEach(d => {
+      d.mesh.position.x -= gameSpeed * d.speedFactor;
+      if (d.mesh.position.x < -25) d.mesh.position.x = 55;
+    });
+
+    cowboy1.update(keys.p1Jump, keys.p1Duck);
+    if (gameMode === 'double') cowboy2.update(keys.p2Jump, keys.p2Duck);
+
+    if (shootAnimTimer > 0) shootAnimTimer--;
+    if (shootCooldown > 0) {
+      shootCooldown--;
+      const secLeft = (shootCooldown / 60).toFixed(1);
+      gunHudEl.textContent = `裝彈倒數：${secLeft} 秒`;
+      gunHudEl.classList.add('reloading');
+    } else {
+      gunHudEl.textContent = '子彈就緒 (按 F 射擊)';
+      gunHudEl.classList.remove('reloading');
+    }
+
+    spawnTimer++;
+    if (spawnTimer >= nextSpawnDelay) {
+      spawnWave();
+      spawnTimer = 0;
+      nextSpawnDelay = Math.max(48, 95 - gameSpeed * 115) + Math.random() * 38;
+    }
+
+    const p1Box = cowboy1.getHitbox();
+    const p2Box = gameMode === 'double' ? cowboy2.getHitbox() : null;
+
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+      const obs = obstacles[i];
+      obs.update();
+      const obsBox = obs.getHitbox();
+
+      if (checkCollision(p1Box, obsBox) || (p2Box && checkCollision(p2Box, obsBox))) {
+        gameOver = true;
+        audio.playGameOver();
+        if (Math.floor(score) > highScore) {
+          highScore = Math.floor(score);
+          highScoreEl.textContent = String(highScore).padStart(5, '0');
+        }
+        msgTitle.textContent = '遊戲結束！';
+        msgSub.innerHTML = `最終得分：<b>${Math.floor(score)}</b><br>點擊畫面或按空白鍵重新挑戰`;
+        overlayMsg.style.display = 'block';
+      }
+
+      if (obs.x < -18) {
+        obs.destroy();
+        obstacles.splice(i, 1);
+      }
+    }
+
+    score += 0.15;
+    const intScore = Math.floor(score);
+    scoreEl.textContent = String(intScore).padStart(5, '0');
+    gameSpeed = Math.min(0.54, 0.22 + intScore * 0.00017);
+
+    const nightCycle = Math.floor(intScore / 300) % 2 === 1;
+    if (nightCycle !== isNight) {
+      isNight = nightCycle;
+      updateDayNight();
+    }
+  } else if (!gameStarted) {
+    cowboy1.runCycle += 0.12;
+    cowboy1.leftLeg.rotation.z = Math.sin(cowboy1.runCycle) * 0.4;
+    cowboy1.rightLeg.rotation.z = -Math.sin(cowboy1.runCycle) * 0.4;
+  }
+
+  for (let i = effects.length - 1; i >= 0; i--) {
+    const ef = effects[i];
+    ef.life--;
+    if (ef.update) ef.update();
+    if (ef.life <= 0) {
+      scene.remove(ef.mesh);
+      effects.splice(i, 1);
+    }
+  }
+
+  renderer.render(scene, camera);
+}
+animate();
+
+// ==========================================
+// 6. 互動頭像裁切與高清晰度紋理處理器
+// ==========================================
+const cropModal = document.getElementById('crop-modal');
+const cropCanvas = document.getElementById('crop-canvas');
+const cropCtx = cropCanvas.getContext('2d');
+const cropZoomInput = document.getElementById('crop-zoom');
+
+let cropState = {
+  img: null,
+  targetCowboy: null,
+  targetBtn: null,
+  label: '',
+  offsetX: 0,
+  offsetY: 0,
+  scale: 1,
+  isDragging: false,
+  lastX: 0,
+  lastY: 0
+};
+
+function renderCropPreview() {
+  if (!cropState.img) return;
+  const size = cropCanvas.width;
+  cropCtx.clearRect(0, 0, size, size);
+
+  cropCtx.save();
+  cropCtx.translate(size / 2 + cropState.offsetX, size / 2 + cropState.offsetY);
+  cropCtx.scale(cropState.scale, cropState.scale);
+  cropCtx.imageSmoothingEnabled = true;
+  cropCtx.imageSmoothingQuality = 'high';
+  cropCtx.drawImage(cropState.img, -cropState.img.width / 2, -cropState.img.height / 2);
+  cropCtx.restore();
+}
+
+function openCropper(img, cowboyObj, btnEl, label) {
+  cropState.img = img;
+  cropState.targetCowboy = cowboyObj;
+  cropState.targetBtn = btnEl;
+  cropState.label = label;
+  cropState.offsetX = 0;
+  cropState.offsetY = 0;
+
+  const baseScale = 512 / Math.min(img.width, img.height);
+  cropState.scale = baseScale;
+  cropZoomInput.min = (baseScale * 0.5).toFixed(2);
+  cropZoomInput.max = (baseScale * 3.0).toFixed(2);
+  cropZoomInput.step = (baseScale * 0.02).toFixed(3);
+  cropZoomInput.value = baseScale;
+
+  renderCropPreview();
+  cropModal.style.display = 'flex';
+}
+
+cropZoomInput.addEventListener('input', () => {
+  cropState.scale = parseFloat(cropZoomInput.value);
+  renderCropPreview();
+});
+
+function startCropDrag(clientX, clientY) {
+  cropState.isDragging = true;
+  cropState.lastX = clientX;
+  cropState.lastY = clientY;
+}
+function moveCropDrag(clientX, clientY) {
+  if (!cropState.isDragging) return;
+  const ratio = 512 / 240;
+  cropState.offsetX += (clientX - cropState.lastX) * ratio;
+  cropState.offsetY += (clientY - cropState.lastY) * ratio;
+  cropState.lastX = clientX;
+  cropState.lastY = clientY;
+  renderCropPreview();
+}
+function endCropDrag() { cropState.isDragging = false; }
+
+cropCanvas.addEventListener('mousedown', e => startCropDrag(e.clientX, e.clientY));
+window.addEventListener('mousemove', e => moveCropDrag(e.clientX, e.clientY));
+window.addEventListener('mouseup', endCropDrag);
+
+cropCanvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  startCropDrag(e.touches[0].clientX, e.touches[0].clientY);
+}, { passive: false });
+cropCanvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  moveCropDrag(e.touches[0].clientX, e.touches[0].clientY);
+}, { passive: false });
+cropCanvas.addEventListener('touchend', endCropDrag);
+
+document.getElementById('crop-cancel').addEventListener('click', () => {
+  cropModal.style.display = 'none';
+});
+
+document.getElementById('crop-confirm').addEventListener('click', () => {
+  const outCanvas = document.createElement('canvas');
+  outCanvas.width = 512;
+  outCanvas.height = 512;
+  const outCtx = outCanvas.getContext('2d');
+
+  outCtx.save();
+  outCtx.beginPath();
+  outCtx.arc(256, 256, 248, 0, Math.PI * 2);
+  outCtx.closePath();
+  outCtx.clip();
+
+  outCtx.drawImage(cropCanvas, 0, 0);
+
+  const grad = outCtx.createRadialGradient(256, 256, 195, 256, 256, 252);
+  grad.addColorStop(0, 'rgba(0,0,0,0)');
+  grad.addColorStop(1, 'rgba(30,15,5,0.28)');
+  outCtx.fillStyle = grad;
+  outCtx.fillRect(0, 0, 512, 512);
+  outCtx.restore();
+
+  try {
+    const sample = outCtx.getImageData(180, 180, 152, 152).data;
+    let r = 0, g = 0, b = 0, count = 0;
+    for (let i = 0; i < sample.length; i += 16) {
+      if (sample[i + 3] > 200) {
+        r += sample[i];
+        g += sample[i + 1];
+        b += sample[i + 2];
+        count++;
+      }
+    }
+    if (count > 0) {
+      const hex = ((Math.round(r / count) << 16) | (Math.round(g / count) << 8) | Math.round(b / count));
+      cropState.targetCowboy.skinToneHex = hex;
+    }
+  } catch (err) {
+    cropState.targetCowboy.skinToneHex = 0xfbd38d;
+  }
+
+  const texture = new THREE.CanvasTexture(outCanvas);
+  texture.encoding = THREE.sRGBEncoding;
+  texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  texture.needsUpdate = true;
+
+  cropState.targetCowboy.customTexture = texture;
+  cropState.targetCowboy.buildModel();
+  cropState.targetBtn.textContent = `${cropState.label}已更換`;
+  document.getElementById('reset-btn').style.display = 'inline-flex';
+  cropModal.style.display = 'none';
+});
+
+function handleFaceUpload(inputEl, cowboyObj, btnEl, label) {
+  inputEl.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => openCropper(img, cowboyObj, btnEl, label);
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+    inputEl.value = '';
+  });
+}
+
+// ==========================================
+// 7. 鍵盤、觸控與UI按鈕事件綁定
+// ==========================================
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+window.addEventListener('keydown', (e) => {
+  if (cropModal.style.display === 'flex') return;
+  if (e.code === 'KeyW' || e.code === 'Space' || (e.code === 'ArrowUp' && gameMode === 'single')) {
+    e.preventDefault();
+    if (!gameStarted || gameOver) restartGame();
+    else keys.p1Jump = true;
+  }
+  if (e.code === 'KeyS' || (e.code === 'ArrowDown' && gameMode === 'single')) {
+    e.preventDefault(); keys.p1Duck = true;
+  }
+  if (gameMode === 'double') {
+    if (e.code === 'ArrowUp') { e.preventDefault(); if (!gameStarted || gameOver) restartGame(); else keys.p2Jump = true; }
+    if (e.code === 'ArrowDown') { e.preventDefault(); keys.p2Duck = true; }
+  }
+  if (e.code === 'KeyF' || e.code === 'KeyZ') { e.preventDefault(); triggerShoot(); }
+});
+
+window.addEventListener('keyup', (e) => {
+  if (e.code === 'KeyW' || e.code === 'Space' || (e.code === 'ArrowUp' && gameMode === 'single')) keys.p1Jump = false;
+  if (e.code === 'KeyS' || (e.code === 'ArrowDown' && gameMode === 'single')) keys.p1Duck = false;
+  if (gameMode === 'double') {
+    if (e.code === 'ArrowUp') keys.p2Jump = false;
+    if (e.code === 'ArrowDown') keys.p2Duck = false;
+  }
+});
+
+overlayMsg.addEventListener('click', () => { if (!gameStarted || gameOver) restartGame(); });
+container.addEventListener('click', () => { if (!gameStarted || gameOver) restartGame(); });
+
+document.getElementById('bgm-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const muted = audio.toggleMute();
+  e.target.textContent = muted ? '音樂：關' : '音樂：開';
+  if (!muted && gameStarted && !gameOver) audio.startBGM();
+});
+
+document.getElementById('mode-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  gameMode = gameMode === 'single' ? 'double' : 'single';
+  e.target.textContent = gameMode === 'single' ? '模式：單人' : '模式：雙人';
+  document.getElementById('upload2-btn').style.display = gameMode === 'double' ? 'inline-flex' : 'none';
+  document.getElementById('p2-touch-group').style.display = gameMode === 'double' ? 'flex' : 'none';
+  restartGame();
+});
+
+const file1Input = document.getElementById('file1-input');
+const file2Input = document.getElementById('file2-input');
+const upload1Btn = document.getElementById('upload1-btn');
+const upload2Btn = document.getElementById('upload2-btn');
+
+upload1Btn.addEventListener('click', (e) => { e.stopPropagation(); file1Input.click(); });
+upload2Btn.addEventListener('click', (e) => { e.stopPropagation(); file2Input.click(); });
+handleFaceUpload(file1Input, cowboy1, upload1Btn, 'P1');
+handleFaceUpload(file2Input, cowboy2, upload2Btn, 'P2');
+
+document.getElementById('reset-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  cowboy1.customTexture = null;
+  cowboy1.skinToneHex = 0xfbd38d;
+  cowboy1.buildModel();
+  cowboy2.customTexture = null;
+  cowboy2.skinToneHex = 0xfbd38d;
+  cowboy2.buildModel();
+  upload1Btn.textContent = 'P1上傳人臉';
+  upload2Btn.textContent = 'P2上傳人臉';
+  e.target.style.display = 'none';
+});
+
+function bindTouchBtn(id, onDown, onUp) {
+  const el = document.getElementById(id);
+  el.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); onDown(); }, { passive: false });
+  if (onUp) {
+    el.addEventListener('touchend', (e) => { e.preventDefault(); e.stopPropagation(); onUp(); }, { passive: false });
+    el.addEventListener('touchcancel', (e) => { e.preventDefault(); e.stopPropagation(); onUp(); }, { passive: false });
+  }
+}
+
+bindTouchBtn('btn-fire', () => triggerShoot());
+bindTouchBtn('btn-jump', () => { if (!gameStarted || gameOver) restartGame(); else keys.p1Jump = true; }, () => { keys.p1Jump = false; });
+bindTouchBtn('btn-duck', () => { keys.p1Duck = true; }, () => { keys.p1Duck = false; });
+bindTouchBtn('btn-p2-jump', () => { if (!gameStarted || gameOver) restartGame(); else keys.p2Jump = true; }, () => { keys.p2Jump = false; });
+bindTouchBtn('btn-p2-duck', () => { keys.p2Duck = true; }, () => { keys.p2Duck = false; });
+</script>
+</body>
+</html>
